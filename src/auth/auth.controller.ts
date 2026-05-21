@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { AdminLoginDto } from './dto/admin-login.dto';
 import { LineLoginDto } from './dto/line-login.dto';
+import { LineTokenLoginDto } from './dto/line-token-login.dto';
 import { LineVerifyDto } from './dto/line-verify.dto';
 
 @ApiTags('auth')
@@ -28,6 +29,15 @@ export class AuthController {
     return this.authService.lineLogin(dto);
   }
 
+  @Post('line/token-login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login using LIFF access token (for LIFF apps)' })
+  @ApiResponse({ status: 200, description: 'Login successful, returns JWT + customer profile' })
+  @ApiResponse({ status: 401, description: 'Invalid LINE access token' })
+  async lineTokenLogin(@Body() dto: LineTokenLoginDto) {
+    return this.authService.lineTokenLogin(dto);
+  }
+
   @Post('line/verify')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify a LINE access token' })
@@ -37,3 +47,4 @@ export class AuthController {
     return this.authService.verifyLineToken(dto.accessToken);
   }
 }
+

@@ -1,10 +1,11 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../prisma/prisma.service';
-import { AdminLoginDto } from './dto/admin-login.dto';
-import { LineLoginDto } from './dto/line-login.dto';
+import { Injectable, UnauthorizedException, Logger } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
+import { ConfigService } from "@nestjs/config";
+import * as bcrypt from "bcrypt";
+import { PrismaService } from "../prisma/prisma.service";
+import { AdminLoginDto } from "./dto/admin-login.dto";
+import { LineLoginDto } from "./dto/line-login.dto";
+import { LineTokenLoginDto } from "./dto/line-token-login.dto";
 
 @Injectable()
 export class AuthService {
@@ -25,12 +26,15 @@ export class AuthService {
     });
 
     if (!admin || !admin.isActive) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
-    const isPasswordValid = await bcrypt.compare(dto.password, admin.passwordHash);
+    const isPasswordValid = await bcrypt.compare(
+      dto.password,
+      admin.passwordHash,
+    );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     // Update last login
@@ -43,7 +47,7 @@ export class AuthService {
       sub: admin.id,
       email: admin.email,
       role: admin.role,
-      type: 'admin',
+      type: "admin",
     };
 
     return {
@@ -61,41 +65,45 @@ export class AuthService {
    * LINE Login — exchange authorization code for token + profile
    */
   async lineLogin(dto: LineLoginDto) {
-    const channelId = this.configService.get<string>('LINE_LOGIN_CHANNEL_ID');
-    const channelSecret = this.configService.get<string>('LINE_LOGIN_CHANNEL_SECRET');
-    const callbackUrl = this.configService.get<string>('LINE_LOGIN_CALLBACK_URL');
+    const channelId = this.configService.get<string>("LINE_LOGIN_CHANNEL_ID");
+    const channelSecret = this.configService.get<string>(
+      "LINE_LOGIN_CHANNEL_SECRET",
+    );
+    const callbackUrl = this.configService.get<string>(
+      "LINE_LOGIN_CALLBACK_URL",
+    );
 
     // Exchange code for access token
-    const tokenResponse = await fetch('https://api.line.me/oauth2/v2.1/token', {
-      method: 'POST',
+    const tokenResponse = await fetch("https://api.line.me/oauth2/v2.1/token", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
-        grant_type: 'authorization_code',
+        grant_type: "authorization_code",
         code: dto.code,
-        redirect_uri: callbackUrl || '',
-        client_id: channelId || '',
-        client_secret: channelSecret || '',
+        redirect_uri: callbackUrl || "",
+        client_id: channelId || "",
+        client_secret: channelSecret || "",
       }),
     });
 
     if (!tokenResponse.ok) {
-      this.logger.error('LINE token exchange failed');
-      throw new UnauthorizedException('LINE authentication failed');
+      this.logger.error("LINE token exchange failed");
+      throw new UnauthorizedException("LINE authentication failed");
     }
 
     const tokenData = await tokenResponse.json();
 
     // Get user profile
-    const profileResponse = await fetch('https://api.line.me/v2/profile', {
+    const profileResponse = await fetch("https://api.line.me/v2/profile", {
       headers: {
         Authorization: `Bearer ${tokenData.access_token}`,
       },
     });
 
     if (!profileResponse.ok) {
-      throw new UnauthorizedException('Failed to get LINE profile');
+      throw new UnauthorizedException("Failed to get LINE profile");
     }
 
     const profile = await profileResponse.json();
@@ -122,7 +130,7 @@ export class AuthService {
     const payload = {
       sub: customer.id,
       lineUserId: customer.lineUserId,
-      type: 'customer',
+      type: "customer",
     };
 
     return {
@@ -137,21 +145,101 @@ export class AuthService {
       },
     };
   }
+  /**
+   * LINE Token Login — accepts a LIFF access token directly
+   * (used when logging in from LIFF where we already have the access token)
+   */
+  async lineTokenLogin(dto: LineTokenLoginDto) {
+    // 1. Verify the access token with LINE
+    const verifyResponse = await fetch(
+      `https://api.line.me/oauth2/v2.1/verify?access_token=${encodeURIComponent(dto.accessToken)}`,
+    );
 
+    if (!verifyResponse.ok) {
+      this.logger.error("LINE access token verification failed");
+      throw new UnauthorizedException("Invalid LINE access token");
+    }
+
+    const verifyData = await verifyResponse.json();
+
+    // Optionally check the channel ID matches
+    const expectedChannelId = this.configService.get<string>(
+      "LINE_LOGIN_CHANNEL_ID",
+    );
+    if (expectedChannelId && verifyData.client_id !== expectedChannelId) {
+      this.logger.warn(
+        `Token channel mismatch: expected ${expectedChannelId}, got ${verifyData.client_id}`,
+      );
+      // Allow it but log — LIFF channel ID may differ from Login channel ID
+    }
+
+    // 2. Fetch user profile using the access token
+    const profileResponse = await fetch("https://api.line.me/v2/profile", {
+      headers: {
+        Authorization: `Bearer ${dto.accessToken}`,
+      },
+    });
+
+    if (!profileResponse.ok) {
+      throw new UnauthorizedException("Failed to get LINE profile");
+    }
+
+    const profile = await profileResponse.json();
+
+    // 3. Upsert customer
+    const customer = await this.prisma.customer.upsert({
+      where: { lineUserId: profile.userId },
+      update: {
+        displayName: profile.displayName,
+        pictureUrl: profile.pictureUrl,
+        statusMessage: profile.statusMessage,
+        lastActiveAt: new Date(),
+      },
+      create: {
+        lineUserId: profile.userId,
+        displayName: profile.displayName,
+        pictureUrl: profile.pictureUrl,
+        statusMessage: profile.statusMessage,
+        lastActiveAt: new Date(),
+      },
+    });
+
+    this.logger.log(
+      `LINE token login: customer ${customer.displayName} (${customer.lineUserId})`,
+    );
+
+    // 4. Generate JWT
+    const payload = {
+      sub: customer.id,
+      lineUserId: customer.lineUserId,
+      type: "customer",
+    };
+
+    return {
+      accessToken: this.jwtService.sign(payload),
+      customer: {
+        id: customer.id,
+        displayName: customer.displayName,
+        pictureUrl: customer.pictureUrl,
+        points: customer.points,
+        tier: customer.tier,
+      },
+    };
+  }
   /**
    * Verify a LINE access token
    */
   async verifyLineToken(accessToken: string) {
-    const response = await fetch('https://api.line.me/oauth2/v2.1/verify', {
-      method: 'POST',
+    const response = await fetch("https://api.line.me/oauth2/v2.1/verify", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        "Content-Type": "application/x-www-form-urlencoded",
       },
       body: `access_token=${accessToken}`,
     });
 
     if (!response.ok) {
-      throw new UnauthorizedException('Invalid LINE access token');
+      throw new UnauthorizedException("Invalid LINE access token");
     }
 
     return response.json();
