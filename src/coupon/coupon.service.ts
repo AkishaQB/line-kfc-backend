@@ -4,16 +4,19 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
-} from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateCouponDto } from './dto/create-coupon.dto';
-import { UpdateCouponDto } from './dto/update-coupon.dto';
-import { AssignCouponDto } from './dto/assign-coupon.dto';
-import { CouponQueryDto } from './dto/coupon-query.dto';
-import { createPaginatedResult, getPaginationSkip } from '../common/utils/pagination.util';
-import { generateCouponCode } from '../common/utils/crypto.util';
-import { ConfigService } from '@nestjs/config';
+} from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import { PrismaService } from "../prisma/prisma.service";
+import { CreateCouponDto } from "./dto/create-coupon.dto";
+import { UpdateCouponDto } from "./dto/update-coupon.dto";
+import { AssignCouponDto } from "./dto/assign-coupon.dto";
+import { CouponQueryDto } from "./dto/coupon-query.dto";
+import {
+  createPaginatedResult,
+  getPaginationSkip,
+} from "../common/utils/pagination.util";
+import { generateCouponCode } from "../common/utils/crypto.util";
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class CouponService {
@@ -29,7 +32,7 @@ export class CouponService {
    */
   async create(dto: CreateCouponDto) {
     // Generate unique code if not provided
-    const code = dto.code || generateCouponCode('CPN');
+    const code = dto.code || generateCouponCode("CPN");
 
     // Check for duplicate code
     const existing = await this.prisma.coupon.findUnique({ where: { code } });
@@ -53,7 +56,7 @@ export class CouponService {
         expirationDate: new Date(dto.expirationDate),
         usageLimit: dto.usageLimit,
         perUserLimit: dto.perUserLimit || 1,
-        status: dto.status || 'ACTIVE',
+        status: dto.status || "ACTIVE",
       },
     });
   }
@@ -64,7 +67,7 @@ export class CouponService {
   async update(id: string, dto: UpdateCouponDto) {
     const coupon = await this.prisma.coupon.findUnique({ where: { id } });
     if (!coupon || coupon.isDeleted) {
-      throw new NotFoundException('Coupon not found');
+      throw new NotFoundException("Coupon not found");
     }
 
     return this.prisma.coupon.update({
@@ -72,7 +75,9 @@ export class CouponService {
       data: {
         ...dto,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-        expirationDate: dto.expirationDate ? new Date(dto.expirationDate) : undefined,
+        expirationDate: dto.expirationDate
+          ? new Date(dto.expirationDate)
+          : undefined,
       },
     });
   }
@@ -82,11 +87,11 @@ export class CouponService {
    */
   async softDelete(id: string) {
     const coupon = await this.prisma.coupon.findUnique({ where: { id } });
-    if (!coupon) throw new NotFoundException('Coupon not found');
+    if (!coupon) throw new NotFoundException("Coupon not found");
 
     return this.prisma.coupon.update({
       where: { id },
-      data: { isDeleted: true, status: 'INACTIVE' },
+      data: { isDeleted: true, status: "INACTIVE" },
     });
   }
 
@@ -104,7 +109,7 @@ export class CouponService {
     });
 
     if (!coupon || coupon.isDeleted) {
-      throw new NotFoundException('Coupon not found');
+      throw new NotFoundException("Coupon not found");
     }
 
     return coupon;
@@ -121,8 +126,8 @@ export class CouponService {
 
     if (search) {
       where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { code: { contains: search, mode: 'insensitive' } },
+        { title: { contains: search, mode: "insensitive" } },
+        { code: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -134,7 +139,7 @@ export class CouponService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         include: {
           _count: { select: { assignments: true } },
         },
@@ -149,18 +154,20 @@ export class CouponService {
    * Assign a coupon to customer(s)
    */
   async assignToCustomers(couponId: string, dto: AssignCouponDto) {
-    const coupon = await this.prisma.coupon.findUnique({ where: { id: couponId } });
+    const coupon = await this.prisma.coupon.findUnique({
+      where: { id: couponId },
+    });
     if (!coupon || coupon.isDeleted) {
-      throw new NotFoundException('Coupon not found');
+      throw new NotFoundException("Coupon not found");
     }
 
-    if (coupon.status !== 'ACTIVE') {
-      throw new BadRequestException('Coupon is not active');
+    if (coupon.status !== "ACTIVE") {
+      throw new BadRequestException("Coupon is not active");
     }
 
     // Check usage limit
     if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
-      throw new BadRequestException('Coupon usage limit reached');
+      throw new BadRequestException("Coupon usage limit reached");
     }
 
     const assignments = [];
@@ -182,7 +189,7 @@ export class CouponService {
         continue;
       }
 
-      const couponCode = generateCouponCode('CPN');
+      const couponCode = generateCouponCode("CPN");
 
       const assignment = await this.prisma.couponAssignment.create({
         data: {
@@ -204,18 +211,19 @@ export class CouponService {
    * Get active coupons for a customer
    */
   async getCustomerCoupons(customerId: string) {
+    console.log(`Fetching active coupons for customer ${customerId}`);
     return this.prisma.couponAssignment.findMany({
       where: {
         customerId,
         isRedeemed: false,
         expiresAt: { gt: new Date() },
         coupon: {
-          status: 'ACTIVE',
+          status: "ACTIVE",
           isDeleted: false,
         },
       },
       include: { coupon: true },
-      orderBy: { expiresAt: 'asc' },
+      orderBy: { expiresAt: "asc" },
     });
   }
 
@@ -232,7 +240,7 @@ export class CouponService {
     });
 
     if (!assignment) {
-      throw new NotFoundException('Coupon assignment not found');
+      throw new NotFoundException("Coupon assignment not found");
     }
 
     return assignment;
@@ -243,7 +251,7 @@ export class CouponService {
    * Silently skips if the coupon doesn't exist, is inactive, or the customer already has it.
    */
   async issueWelcomeCoupon(customerId: string): Promise<void> {
-    const WELCOME_CODE = 'WELCOME20';
+    const WELCOME_CODE = "WELCOME20";
 
     try {
       // Find the welcome coupon
@@ -251,8 +259,10 @@ export class CouponService {
         where: { code: WELCOME_CODE },
       });
 
-      if (!coupon || coupon.isDeleted || coupon.status !== 'ACTIVE') {
-        this.logger.warn(`Welcome coupon "${WELCOME_CODE}" not found or inactive — skipping`);
+      if (!coupon || coupon.isDeleted || coupon.status !== "ACTIVE") {
+        this.logger.warn(
+          `Welcome coupon "${WELCOME_CODE}" not found or inactive — skipping`,
+        );
         return;
       }
 
@@ -262,17 +272,21 @@ export class CouponService {
       });
 
       if (existing) {
-        this.logger.debug(`Customer ${customerId} already has ${WELCOME_CODE} — skipping`);
+        this.logger.debug(
+          `Customer ${customerId} already has ${WELCOME_CODE} — skipping`,
+        );
         return;
       }
 
       // Check global usage limit
       if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
-        this.logger.warn(`Welcome coupon "${WELCOME_CODE}" usage limit reached`);
+        this.logger.warn(
+          `Welcome coupon "${WELCOME_CODE}" usage limit reached`,
+        );
         return;
       }
 
-      const couponCode = generateCouponCode('WLC');
+      const couponCode = generateCouponCode("WLC");
 
       await this.prisma.couponAssignment.create({
         data: {
@@ -283,10 +297,15 @@ export class CouponService {
         },
       });
 
-      this.logger.log(`Issued ${WELCOME_CODE} coupon to new customer ${customerId}`);
+      this.logger.log(
+        `Issued ${WELCOME_CODE} coupon to new customer ${customerId}`,
+      );
     } catch (error) {
       // Never let welcome coupon failure break the login flow
-      this.logger.error(`Failed to issue welcome coupon: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to issue welcome coupon: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -297,10 +316,10 @@ export class CouponService {
   async expireCoupons() {
     const result = await this.prisma.coupon.updateMany({
       where: {
-        status: 'ACTIVE',
+        status: "ACTIVE",
         expirationDate: { lt: new Date() },
       },
-      data: { status: 'EXPIRED' },
+      data: { status: "EXPIRED" },
     });
 
     if (result.count > 0) {
