@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Logger } from "@nestjs/common";
+import { Injectable, UnauthorizedException, Logger, Inject, forwardRef } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
@@ -6,6 +6,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AdminLoginDto } from "./dto/admin-login.dto";
 import { LineLoginDto } from "./dto/line-login.dto";
 import { LineTokenLoginDto } from "./dto/line-token-login.dto";
+import { CouponService } from "../coupon/coupon.service";
 
 @Injectable()
 export class AuthService {
@@ -15,6 +16,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @Inject(forwardRef(() => CouponService))
+    private readonly couponService: CouponService,
   ) {}
 
   /**
@@ -126,6 +129,12 @@ export class AuthService {
       },
     });
 
+    // Issue welcome coupon for first-time customers
+    const isNewCustomer = (Date.now() - new Date(customer.createdAt).getTime()) < 5000;
+    if (isNewCustomer) {
+      await this.couponService.issueWelcomeCoupon(customer.id);
+    }
+
     // Generate JWT for customer
     const payload = {
       sub: customer.id,
@@ -203,6 +212,12 @@ export class AuthService {
         lastActiveAt: new Date(),
       },
     });
+
+    // Issue welcome coupon for first-time customers
+    const isNewCustomer = (Date.now() - new Date(customer.createdAt).getTime()) < 5000;
+    if (isNewCustomer) {
+      await this.couponService.issueWelcomeCoupon(customer.id);
+    }
 
     this.logger.log(
       `LINE token login: customer ${customer.displayName} (${customer.lineUserId})`,

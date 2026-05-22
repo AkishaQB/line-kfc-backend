@@ -5,7 +5,7 @@ import { IsString, IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 class PosValidateDto {
-  @ApiProperty() @IsString() @IsNotEmpty() qrToken: string;
+  @ApiProperty() @IsString() @IsNotEmpty() couponCode: string;
 }
 
 class PosTransactionDto {
@@ -22,9 +22,9 @@ export class PosController {
   constructor(private readonly posService: PosService) {}
 
   @Post('validate-coupon')
-  @ApiOperation({ summary: 'Validate coupon from POS system' })
+  @ApiOperation({ summary: 'Validate coupon code from POS system' })
   async validateCoupon(@Body() dto: PosValidateDto) {
-    return this.posService.validateCoupon(dto.qrToken);
+    return this.posService.validateCoupon(dto.couponCode);
   }
 
   @Post('transaction')

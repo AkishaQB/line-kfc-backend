@@ -25,7 +25,11 @@ async function bootstrap() {
 
   // CORS
   app.enableCors({
-    origin: ["https://line-kfc-frontend.vercel.app", "https://liff.line.me"],
+    origin: [
+      "https://line-kfc-frontend.vercel.app",
+      "http://localhost:5173/",
+      "https://liff.line.me",
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
@@ -70,7 +74,7 @@ async function bootstrap() {
     .addTag("coupons", "Coupon engine")
     .addTag("campaigns", "Campaign management")
     .addTag("loyalty", "Loyalty & rewards")
-    .addTag("redemptions", "QR redemption")
+    .addTag("redemptions", "Coupon code redemption")
     .addTag("notifications", "Push notifications")
     .addTag("stores", "Store management")
     .addTag("pos", "POS integration")

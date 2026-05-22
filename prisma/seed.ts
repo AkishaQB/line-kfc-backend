@@ -252,13 +252,15 @@ async function main() {
   console.log("✅ Customers seeded");
 
   // ==================== Sample Assignments ====================
+  let assignmentIndex = 0;
   for (const customer of customers) {
     for (const coupon of coupons.slice(0, 3)) {
+      assignmentIndex++;
       await prisma.couponAssignment.create({
         data: {
           couponId: coupon.id,
           customerId: customer.id,
-          qrToken: randomUUID(),
+          couponCode: `CPN-${coupon.code}-${assignmentIndex.toString().padStart(4, '0')}`,
           expiresAt: coupon.expirationDate,
         },
       });

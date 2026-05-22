@@ -2,7 +2,7 @@ import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
-import { generateSecureToken } from '../common/utils/crypto.util';
+import { generateCouponCode } from '../common/utils/crypto.util';
 
 @Processor('campaign')
 export class CampaignProcessor {
@@ -58,13 +58,13 @@ export class CampaignProcessor {
       }
 
       // Assign coupon
-      const qrToken = generateSecureToken();
+      const couponCode = generateCouponCode('CPN');
 
       await this.prisma.couponAssignment.create({
         data: {
           couponId: campaign.couponId,
           customerId: customer.id,
-          qrToken,
+          couponCode,
           expiresAt: campaign.coupon.expirationDate,
         },
       });

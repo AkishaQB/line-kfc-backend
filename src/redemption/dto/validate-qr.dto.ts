@@ -1,11 +1,11 @@
 import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class ValidateQrDto {
-  @ApiProperty({ description: 'QR code payload (JSON string with token, timestamp, signature)' })
+export class ValidateCouponCodeDto {
+  @ApiProperty({ description: 'Coupon code to validate for redemption' })
   @IsString()
   @IsNotEmpty()
-  qrPayload: string;
+  couponCode: string;
 
   @ApiPropertyOptional({ description: 'Store ID where redemption is happening' })
   @IsOptional()

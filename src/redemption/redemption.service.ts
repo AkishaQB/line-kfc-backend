@@ -6,9 +6,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { ValidateQrDto } from './dto/validate-qr.dto';
+import { ValidateCouponCodeDto } from './dto/validate-qr.dto';
 import { CompleteRedemptionDto } from './dto/complete-redemption.dto';
-import { verifyQrPayload } from '../common/utils/qr.util';
 import { createPaginatedResult, getPaginationSkip } from '../common/utils/pagination.util';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -22,22 +21,12 @@ export class RedemptionService {
   ) {}
 
   /**
-   * Validate a QR token from POS/cashier scan
+   * Validate a coupon code for redemption
    */
-  async validateQr(dto: ValidateQrDto) {
-    const hmacSecret = this.configService.get<string>('QR_HMAC_SECRET', 'default');
-    const expiryMinutes = this.configService.get<number>('QR_TOKEN_EXPIRY_MINUTES', 5);
-
-    // Verify QR payload signature and expiry
-    const verification = verifyQrPayload(dto.qrPayload, hmacSecret, expiryMinutes);
-
-    if (!verification.valid) {
-      throw new BadRequestException(verification.error);
-    }
-
-    // Find the coupon assignment by QR token
+  async validateCouponCode(dto: ValidateCouponCodeDto) {
+    // Find the coupon assignment by coupon code
     const assignment = await this.prisma.couponAssignment.findUnique({
-      where: { qrToken: verification.token! },
+      where: { couponCode: dto.couponCode },
       include: {
         coupon: true,
         customer: true,
@@ -45,7 +34,7 @@ export class RedemptionService {
     });
 
     if (!assignment) {
-      throw new NotFoundException('Coupon not found');
+      throw new NotFoundException('Invalid coupon code');
     }
 
     // Anti-fraud checks

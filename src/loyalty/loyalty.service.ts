@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { AddStampDto } from './dto/add-stamp.dto';
 import { RedeemPointsDto } from './dto/redeem-points.dto';
-import { generateSecureToken } from '../common/utils/crypto.util';
+import { generateCouponCode } from '../common/utils/crypto.util';
 
 @Injectable()
 export class LoyaltyService {
@@ -219,13 +219,13 @@ export class LoyaltyService {
     const coupon = await this.prisma.coupon.findUnique({ where: { id: couponId } });
     if (!coupon) return;
 
-    const qrToken = generateSecureToken();
+    const couponCode = generateCouponCode('RWD');
 
     await this.prisma.couponAssignment.create({
       data: {
         couponId,
         customerId,
-        qrToken,
+        couponCode,
         expiresAt: coupon.expirationDate,
       },
     });

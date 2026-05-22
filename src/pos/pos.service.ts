@@ -10,9 +10,9 @@ export class PosService {
   /**
    * Validate a coupon from POS system
    */
-  async validateCoupon(qrToken: string) {
+  async validateCoupon(couponCode: string) {
     const assignment = await this.prisma.couponAssignment.findUnique({
-      where: { qrToken },
+      where: { couponCode },
       include: {
         coupon: true,
         customer: true,

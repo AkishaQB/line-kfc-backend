@@ -12,8 +12,7 @@ import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { AssignCouponDto } from './dto/assign-coupon.dto';
 import { CouponQueryDto } from './dto/coupon-query.dto';
 import { createPaginatedResult, getPaginationSkip } from '../common/utils/pagination.util';
-import { generateSecureToken, generateCouponCode } from '../common/utils/crypto.util';
-import { generateQrDataUrl, generateQrPayload } from '../common/utils/qr.util';
+import { generateCouponCode } from '../common/utils/crypto.util';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -183,13 +182,13 @@ export class CouponService {
         continue;
       }
 
-      const qrToken = generateSecureToken();
+      const couponCode = generateCouponCode('CPN');
 
       const assignment = await this.prisma.couponAssignment.create({
         data: {
           couponId,
           customerId,
-          qrToken,
+          couponCode,
           expiresAt: coupon.expirationDate,
         },
         include: { coupon: true },
@@ -221,7 +220,7 @@ export class CouponService {
   }
 
   /**
-   * Get customer coupon assignment with QR code
+   * Get customer coupon assignment detail
    */
   async getCustomerCouponDetail(assignmentId: string, customerId: string) {
     const assignment = await this.prisma.couponAssignment.findFirst({
@@ -236,15 +235,59 @@ export class CouponService {
       throw new NotFoundException('Coupon assignment not found');
     }
 
-    // Generate QR code
-    const hmacSecret = this.configService.get<string>('QR_HMAC_SECRET', 'default');
-    const qrPayload = generateQrPayload(assignment.qrToken, hmacSecret);
-    const qrDataUrl = await generateQrDataUrl(qrPayload);
+    return assignment;
+  }
 
-    return {
-      ...assignment,
-      qrCode: qrDataUrl,
-    };
+  /**
+   * Issue the WELCOME20 coupon to a first-time customer.
+   * Silently skips if the coupon doesn't exist, is inactive, or the customer already has it.
+   */
+  async issueWelcomeCoupon(customerId: string): Promise<void> {
+    const WELCOME_CODE = 'WELCOME20';
+
+    try {
+      // Find the welcome coupon
+      const coupon = await this.prisma.coupon.findUnique({
+        where: { code: WELCOME_CODE },
+      });
+
+      if (!coupon || coupon.isDeleted || coupon.status !== 'ACTIVE') {
+        this.logger.warn(`Welcome coupon "${WELCOME_CODE}" not found or inactive — skipping`);
+        return;
+      }
+
+      // Check if customer already has this coupon assigned
+      const existing = await this.prisma.couponAssignment.findFirst({
+        where: { couponId: coupon.id, customerId },
+      });
+
+      if (existing) {
+        this.logger.debug(`Customer ${customerId} already has ${WELCOME_CODE} — skipping`);
+        return;
+      }
+
+      // Check global usage limit
+      if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+        this.logger.warn(`Welcome coupon "${WELCOME_CODE}" usage limit reached`);
+        return;
+      }
+
+      const couponCode = generateCouponCode('WLC');
+
+      await this.prisma.couponAssignment.create({
+        data: {
+          couponId: coupon.id,
+          customerId,
+          couponCode,
+          expiresAt: coupon.expirationDate,
+        },
+      });
+
+      this.logger.log(`Issued ${WELCOME_CODE} coupon to new customer ${customerId}`);
+    } catch (error) {
+      // Never let welcome coupon failure break the login flow
+      this.logger.error(`Failed to issue welcome coupon: ${error.message}`, error.stack);
+    }
   }
 
   /**

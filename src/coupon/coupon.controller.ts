@@ -92,7 +92,7 @@ export class CouponController {
 
   @Get('my/:assignmentId')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get coupon detail with QR code (customer)' })
+  @ApiOperation({ summary: 'Get coupon detail (customer)' })
   async getMyCouponDetail(
     @CurrentUser('id') customerId: string,
     @Param('assignmentId') assignmentId: string,
