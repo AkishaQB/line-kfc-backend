@@ -23,6 +23,7 @@ export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
   @Get('me')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current customer profile' })
   async getMyProfile(@CurrentUser('id') customerId: string) {
@@ -30,6 +31,7 @@ export class CustomerController {
   }
 
   @Put('me')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update current customer profile' })
   async updateMyProfile(
@@ -40,6 +42,7 @@ export class CustomerController {
   }
 
   @Get('me/points')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get points history for current customer' })
   async getMyPointsHistory(

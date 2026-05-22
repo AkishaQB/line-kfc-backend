@@ -84,6 +84,7 @@ export class CouponController {
   // ==================== Customer Endpoints ====================
 
   @Get('my/active')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get my active coupons (customer)' })
   async getMyCoupons(@CurrentUser('id') customerId: string) {
@@ -91,6 +92,7 @@ export class CouponController {
   }
 
   @Get('my/:assignmentId')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get coupon detail (customer)' })
   async getMyCouponDetail(
