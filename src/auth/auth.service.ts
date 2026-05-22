@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, Logger, Inject, forwardRef } from "@nestjs/common";
+import {
+  Injectable,
+  UnauthorizedException,
+  Logger,
+  Inject,
+  forwardRef,
+} from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
@@ -130,7 +136,11 @@ export class AuthService {
     });
 
     // Issue welcome coupon for first-time customers
-    const isNewCustomer = (Date.now() - new Date(customer.createdAt).getTime()) < 5000;
+    const isNewCustomer =
+      Date.now() - new Date(customer.createdAt).getTime() < 5000;
+    console.log(
+      `Customer ${customer.displayName} (${customer.lineUserId}) logged in. New customer: ${isNewCustomer}`,
+    );
     if (isNewCustomer) {
       await this.couponService.issueWelcomeCoupon(customer.id);
     }
@@ -214,7 +224,8 @@ export class AuthService {
     });
 
     // Issue welcome coupon for first-time customers
-    const isNewCustomer = (Date.now() - new Date(customer.createdAt).getTime()) < 5000;
+    const isNewCustomer =
+      Date.now() - new Date(customer.createdAt).getTime() < 5000;
     if (isNewCustomer) {
       await this.couponService.issueWelcomeCoupon(customer.id);
     }
